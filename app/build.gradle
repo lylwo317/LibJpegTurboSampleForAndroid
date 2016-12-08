@@ -1,0 +1,77 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+apply plugin: 'com.android.model.application'
+
+model {
+    android {
+        compileSdkVersion = 23
+        buildToolsVersion = "23.0.2"
+
+        defaultConfig {
+            applicationId "com.kevin.uselibjpegturbo"
+            minSdkVersion.apiLevel = 15
+            targetSdkVersion.apiLevel = 22
+            versionCode = 1
+            versionName = '1.0'
+        }
+        ndk { // keeping it to make AS correctly support C++ code editing
+            moduleName "uselib"
+            ldLibs.add('log')
+            cppFlags.add('-std=c++11')
+            cppFlags.add('-I' + file("src/main/jni/prebuilts/include"))
+            stl = 'gnustl_shared'
+        }
+
+        buildTypes {
+            release {
+                minifyEnabled = false
+                proguardFiles.add(file('proguard-android.txt'))
+            }
+
+        }
+
+    }
+
+   android.sources {
+            main{
+                jniLibs {
+                    source {
+                        srcDir 'src/main/obj/local'
+                    }
+                }
+            }
+    }
+
+}
+
+// noinspection GroovyAssignabilityCheck
+task ndkBuild(type: Exec, description: 'Compile JNI source via NDK') {
+    def ndkBuilder
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        ndkBuilder = 'ndk-build.cmd'
+    } else {
+        ndkBuilder = '/home/kevin/AndroidSdk/ndk-bundle/ndk-build'
+    }
+    commandLine "$ndkBuilder",
+            '-C' ,file('src/main/jni').absolutePath,
+            '-j', Runtime.runtime.availableProcessors(),'NDK_DEBUG=1'
+}
+
+
+tasks.all {
+    task ->
+        if (task.name.startsWith('compile') && task.name.contains('MainC')) {
+            task.enabled = false
+        }
+        if (task.name.startsWith('link')) {
+            task.enabled = false
+        }
+        if (task.name.endsWith('SharedLibrary') ) {
+            task.dependsOn ndkBuild
+        }
+}
+
+
+dependencies {
+    compile fileTree(include: ['*.jar'], dir: 'libs')
+    compile 'com.android.support:appcompat-v7:23.3.0'
+}
